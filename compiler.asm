@@ -1,15 +1,31 @@
     global _compile
 
     extern _printf
-    extern _putchar
     extern _getchar
+    extern _fopen
+    extern _fclose
+    extern _fputc
+    extern _fgetc
+    extern _malloc
+    extern _free
 
     section .data
 
-memerr: db 10, 'Error: accessing memory outside of your territory', 0
-bopenerr: db 10, 'Error: not closing bracket that was opened', 0
-bcloseerr: db 10, 'Error: closing bracket that was not opened', 0
-charthirteen: db '[13]', 0
+read: db 'r', 0
+write db 'w', 0
+int: db '%d', 10, 0
+input: db 'input.txt', 0
+code: db 'code.txt', 0
+output: db 'output.txt', 0
+files_opened: db 'Files opened and created successfully', 10, 'Parsing...', 10, 0
+exit: db 'Program exited successfully. Press enter to close the window!', 10, 0
+inputerr: db 'Warning: could not open input.txt', 10, 0
+inputerr2: db 'Error: cannot read from input.txt', 10, 0 
+codeerr: db 'Error: could not open code.txt', 10, 0
+outputerr: db 'Error: could not create output.txt', 10, 0
+memerr: db 'Error: accessing memory outside of your territory', 10, 0
+bopenerr: db 'Error: not closing bracket that was opened', 10, 0
+bcloseerr: db 'Error: closing bracket that was not opened', 10, 0
 ping: db 'ping', 10, 0
 
     section .text
@@ -17,14 +33,25 @@ ping: db 'ping', 10, 0
 _compile:
     push ebp
     mov ebp, esp
+    call open_files
+    cmp eax, 0
+    je end
+    push eax
 
-    mov ebx, dword[ebp + 8]     ; ebx stores the address of the code
+    call read_code
+
+    mov ebx, eax                ; ebx stores the address of the code
+    push ebx
+
+    push files_opened
+    call _printf
+    add esp, 4
 
     sub esp, 256                ; create 256 bytes of storage for data (real BF uses like 32k but we do not need that much now)
 
     mov dword ecx, 0
 make_it_zero:                   ; start with a storage full of zeros
-    cmp dword ecx, 256
+    cmp dword ecx, 256          ; TODO: make storage size dynamic
     je parse_code               ; when finished preparing the storage, start parsing the code
     mov dword [esp + ecx], 0
     add ecx, 4
@@ -35,7 +62,18 @@ finish_parsing:
     jne free_stack_after_error
     add esp, 8                  ; free pointer and loop-stack size
     add esp, 256                ; free storage
-
+    call _free
+    add esp, 4
+    call close_files
+    add esp, 4
+end:
+    push dword [ebp - 8]
+    call _free
+    mov esp, ebp
+    push exit
+    call _printf
+    add esp, 4
+    call _getchar
     pop ebp
     ret
 
@@ -109,20 +147,44 @@ close:
 
 print_char:
     call get_pointer_address    ; print out the value pointed by the pointer as char
-    mov al, [eax]
-    cmp al, 13                  ; char 13 is something messy, it gets back to the start of the line,
-    je print_char_thirteen      ; and starts overwriting existing characters, so we will not support it
+    mov dl, [eax]
+    mov eax, 0
+    mov al, dl
+    push dword 0
     push eax
-    call _putchar
-    add esp, 4
+    call get_files_address
+    mov eax, [eax]
+    add eax, 4
+    mov eax, [eax]
+    mov [esp + 4], eax
+    call _fputc
+    add esp, 8
     jmp inc_ebx
 
 read_char:
-    call _getchar               ; read a character from the output
+    call get_files_address
+    mov eax, [eax]
+    add eax, 8
+    mov eax, [eax]
+    push eax
+    cmp dword [esp], 0
+    je cannot_read_char
+    call _fgetc                 ; read a character from the output
+    inc eax
+    cmp eax, 0
+    je cannot_read_char
+    dec eax
     mov edx, eax
+    add esp, 4
     call get_pointer_address
     mov byte [eax], dl          ; and store it where the pointer points
     jmp inc_ebx
+
+cannot_read_char:
+    push inputerr2
+    call _printf
+    add esp, 8
+    jmp finish_parsing
 
 find_close:
     cmp byte [ebx], 0           ; skip through the content of the loop, find the next ']'
@@ -145,12 +207,6 @@ print_ping:
     add esp, 4                  ; this way you can see after which line the code terminates
     ret
 
-print_char_thirteen:
-    push charthirteen           ; instead of printing ASCII char 13 we print '[13]'
-    call _printf
-    add esp, 4
-    jmp inc_ebx
-
 get_pointer:
     mov eax, esp                ; because of the call of this subroutine esp points 4 bytes lower than our loop-stack size data
     add eax, 8                  ; jump to the 0th element of loop-stack
@@ -163,6 +219,11 @@ get_pointer_address:
     add eax, [esp + 4]          ; skip the loop-stack, so now we are sitting on the pointer
     add eax, [eax]              ; increase our position with the value of the pointer
     add eax, 4                  ; and jump one dword ahead since we were sitting on the pointer, not on the 0th element
+    ret
+
+get_files_address:
+    mov eax, ebp
+    sub eax, 4
     ret
 
 free_stack_after_error:
@@ -187,3 +248,136 @@ err_mem:
     call _printf
     add esp, 4
     jmp finish_parsing
+
+open_files:
+    push ebp
+    mov ebp, esp
+
+    push dword 12
+    call _malloc
+    mov ebx, eax
+
+    mov dword [esp], code
+    call open_file
+    mov dword [ebx], eax
+    cmp dword [ebx], 0
+    jne open_output
+    mov dword [esp], codeerr
+    call _printf
+    mov [esp], ebx
+    call _free
+    add esp, 4
+    mov eax, 0
+    jmp finish_opening
+open_output:
+    mov dword [esp], output
+    call create_file
+    mov dword [ebx + 4], eax
+    cmp dword [ebx + 4], 0
+    jne open_input
+    mov dword [esp], outputerr
+    call _printf
+    mov eax, [ebx]
+    mov [esp], eax
+    call _fclose
+    mov [esp], ebx
+    call _free
+    add esp, 4
+    mov eax, 0
+    jmp finish_opening
+open_input:
+    mov dword [esp], input
+    call open_file
+    mov dword [ebx + 8], eax
+    add esp, 4
+    cmp dword [ebx + 8], 0
+    jne no_error_while_opening
+    push inputerr
+    call _printf
+    add esp, 4
+no_error_while_opening:
+    mov eax, ebx
+finish_opening:
+    pop ebp
+    ret
+
+open_file:
+    push ebp                    ; file* open_file(char* name)
+    mov ebp, esp
+
+    push dword read
+    mov eax, [ebp + 8]
+    push eax
+    call _fopen
+    add esp, 8
+
+    pop ebp
+    ret
+
+create_file:
+    push ebp                    ; file* create_file(char* name)
+    mov ebp, esp
+
+    push dword write
+    mov eax, [ebp + 8]
+    push eax
+    call _fopen
+    add esp, 8
+
+    pop ebp
+    ret
+
+close_files:
+    push ebp
+    mov ebp, esp
+
+    mov ebx, [ebp + 8]
+    push dword [ebx]
+    call _fclose
+    mov eax, [ebx + 4]
+    mov [esp], eax
+    call _fclose
+    mov eax, [ebx + 8]
+    mov [esp], eax
+    cmp dword [esp], 0
+    je free_files
+    call _fclose
+free_files:
+    mov [esp], ebx
+    call _free
+    add esp, 4
+    pop ebp
+    ret
+
+read_code:
+    push ebp
+    mov ebp, esp
+
+    mov ebx, [ebp + 8]
+    mov ebx, [ebx]
+    push dword 1024
+    call _malloc
+    mov [esp], eax
+    push eax
+    push ebx
+read_one_char:
+    call _fgetc
+    mov edx, eax
+    mov ebx, edx
+    add ebx, 1
+    cmp dword ebx, 0
+    je end_read
+    mov eax, [esp + 4]
+    mov byte [eax], dl
+    inc eax
+    mov [esp + 4], eax
+    jmp read_one_char
+end_read:
+    add esp, 4
+    mov eax, [esp]
+    mov byte [eax], 0
+    add esp, 4
+    mov eax, [esp]
+    add esp, 4
+    pop ebp
+    ret
