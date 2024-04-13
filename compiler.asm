@@ -67,8 +67,6 @@ finish_parsing:
     call close_files
     add esp, 4
 end:
-    push dword [ebp - 8]
-    call _free
     mov esp, ebp
     push exit
     call _printf
