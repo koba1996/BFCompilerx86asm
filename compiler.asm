@@ -374,7 +374,7 @@ read_code:
 
     mov ebx, [ebp + 8]
     mov ebx, [ebx]
-    push dword 1024
+    push dword 1024                 ; TODO: make it dynamic
     call _malloc
     mov [esp], eax
     push eax
