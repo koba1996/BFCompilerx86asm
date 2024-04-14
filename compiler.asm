@@ -40,7 +40,7 @@ _compile:
     push dword [ebp + 8]            ; storage-size
     call open_files
     cmp eax, 0
-    je end_new
+    je file_error
     push eax                        ; *int files
 
     call read_code
@@ -59,7 +59,7 @@ _compile:
     add eax, 20
     push eax                        ; pointer address
 
-    call parse_code_new
+    call parse_code
     mov [esp + 24], eax
     add esp, 4
     call _free
@@ -68,7 +68,10 @@ _compile:
     add esp, 4
     call close_files
     add esp, 4
-end_new:
+    jmp end
+file_error:
+    mov dword [esp + 8], 1
+end:
     add esp, 8
     cmp dword [esp], 0
     je exit_no_errors
@@ -83,38 +86,38 @@ exit_finally:
     pop ebp
     ret
 
-parse_code_new:
+parse_code:
     push ebp                        ; void parse_code(int* index, char* storage, char* code, int* files, int storage_size, int outer)
     mov ebp, esp                    ; files = [FILE* code, FILE* output, FILE* input]
 
     push dword 0                    ; local variable that stores errors
 iterate:
     push dword [ebp + 16]
-parse_char_new:
+parse_char:
     mov eax, [esp]
     push dword [eax]
     cmp byte [esp], 0
     je check_brackets_closed
     cmp byte [esp], '+'
-    je plus_new
+    je plus
     cmp byte [esp], '-'
-    je minus_new
+    je minus
     cmp byte [esp], '<'
-    je left_new
+    je left
     cmp byte [esp], '>'
-    je right_new
+    je right
     cmp byte [esp], '['
-    je open_new
+    je open
     cmp byte [esp], ']'
-    je close_new
+    je close
     cmp byte [esp], '.'
-    je print_char_new
+    je print_char
     cmp byte [esp], ','
-    je read_char_new
+    je read_char
 next_char:
     add esp, 4
     inc dword [esp]
-    jmp parse_char_new
+    jmp parse_char
 finish_iteration_with_err:
     inc dword [esp + 8]
 finish_iteration:
@@ -123,7 +126,7 @@ finish_iteration:
     pop ebp
     ret
 
-plus_new:
+plus:
     mov eax, [ebp + 12]
     mov edx, [ebp + 8]
     mov edx, [edx]
@@ -131,7 +134,7 @@ plus_new:
     inc byte [eax]
     jmp next_char
 
-minus_new:
+minus:
     mov eax, [ebp + 12]
     mov edx, [ebp + 8]
     mov edx, [edx]
@@ -139,14 +142,14 @@ minus_new:
     dec byte [eax]
     jmp next_char
 
-left_new:
+left:
     mov eax, [ebp + 8]
     cmp dword [eax], 0
     je err_mem
     dec dword [eax]
     jmp next_char
 
-right_new:
+right:
     mov eax, [ebp + 8]
     mov edx, [eax]
     inc edx
@@ -155,13 +158,13 @@ right_new:
     inc dword [eax]
     jmp next_char
 
-open_new:
+open:
     mov eax, [ebp + 12]
     mov edx, [ebp + 8]
     mov edx, [edx]
     add eax, edx
     cmp byte [eax], 0
-    je find_close_new
+    je find_close
     push dword 0                    ; we are inside a loop
     push dword [ebp + 24]           ; storage size
     push dword [ebp + 20]           ; files
@@ -170,20 +173,20 @@ open_new:
     push eax                        ; code starting address
     push dword [ebp + 12]           ; storage address
     push dword [ebp + 8]            ; pointer address
-    call parse_code_new
+    call parse_code
     add esp, 24
     cmp eax, 0
-    je find_close_new
+    je find_close
     jmp finish_iteration_with_err
-find_close_new:
+find_close:
     inc dword [esp + 4]
     mov eax, [esp + 4]
     mov al, [eax]
     cmp al, ']'
     je next_char
-    jmp find_close_new
+    jmp find_close
 
-close_new:
+close:
     cmp dword [ebp + 28], 1
     je err_close
     mov eax, [ebp + 12]
@@ -195,7 +198,7 @@ close_new:
     add esp, 8
     jmp iterate
 
-print_char_new:
+print_char:
     mov eax, [ebp + 20]
     add eax, 4
     mov eax, [eax]
@@ -211,7 +214,7 @@ print_char_new:
     add esp, 8
     jmp next_char
 
-read_char_new:
+read_char:
     mov eax, [ebp + 20]
     add eax, 8
     mov eax, [eax]
