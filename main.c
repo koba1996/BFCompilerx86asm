@@ -5,10 +5,10 @@
 
 #include <stdio.h>
 
-extern void compile();
+extern void compile(int storage);
 
 int main(int argc, char **argv)
 {
-    compile();
+    compile(1024);
     return 0;
 }
