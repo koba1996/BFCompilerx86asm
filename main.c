@@ -5,11 +5,10 @@
 
 #include <stdio.h>
 
-extern void compile(char *code);
+extern void compile();
 
 int main(int argc, char **argv)
 {
-    compile(">++++++++[<+++++++++>-]<.>++++[<+++++++>-]<+.+++++++..+++.>>++++++[<+++++++>-]\
-    <++.------------.>++++++[<+++++++++>-]<+.<.+++.------.--------.>>>++++[<++++++++>-]<+.");
+    compile();
     return 0;
 }
