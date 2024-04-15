@@ -3,6 +3,6 @@ A project using mostly assembly to parse BrainF**k code and print the output of 
 
 If you are not familiar with BF: it is an extremely simple yet turing-complete esoteric programming language. You can read about it [here](https://en.wikipedia.org/wiki/Brainfuck).
 
-The assembly code basically gets a string containing a BF code, and executes it. It uses 256 byte cells instead of 30,000, mostly because I did not need 30,000. When it comes to reading input with the ',' character, the input can only be one character (0-255), it cannot take numbers like 65, it will be read as '6'. 
+The new version works with files as input and output. You must provide a code.txt file that contains the BF code, and you can optionally provide an input.txt file that contains inputs. When using the read input command, the code will read the input file char by char if provided, otherwise will fail with an error. The output will be printed into the output.txt file. The file will be overwritten, if already exists.
 
 Have fun playing with it!
